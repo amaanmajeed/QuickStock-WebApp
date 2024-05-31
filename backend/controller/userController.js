@@ -93,6 +93,20 @@ const loginUser = asyncHandler(async (req, res) => {
   // User exists, now check the password
   const passwordIsCorrect = await bcryptjs.compare(password, user.password);
 
+  //   Generate Token
+  const token = generateToken(user._id);
+
+  if (passwordIsCorrect) {
+    // Send HTTP-only cookie
+    res.cookie("token", token, {
+      path: "/",
+      httpOnly: true,
+      expires: new Date(Date.now() + 1000 * 86400), // 1 day
+      sameSite: "none",
+      secure: true,
+    });
+  }
+
   if (user && passwordIsCorrect) {
     const { _id, name, email, phone, bio } = user;
     res.status(201).json({
@@ -123,8 +137,78 @@ const logoutUser = asyncHandler(async (req, res) => {
   return res.status(200).json({ message: "Successfully Logged Out" });
 });
 
+// Get User data
+
+const getUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    const { _id, name, email, phone, bio } = user;
+    res.status(201).json({
+      _id,
+      name,
+      email,
+      phone,
+      bio,
+    });
+  } else {
+    res.status(400);
+    throw Error("User not Found");
+  }
+});
+
+
+// loginStatus
+const loginStatus = asyncHandler(async (req, res) => {
+  const token = req.cookies.token
+
+  if (!token) {
+    return res.json(false);
+  }
+
+  // Verify Auth of Token
+  const verified = jwt.verify(token, process.env.JWT_SECRET);
+
+  if (verified) {
+    return res.json(true)
+  }
+  return res.json(false)
+
+  // res.send("LoggedIn Status");
+})
+
+const UpdateUser = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.user._id);
+
+  if (user) {
+    const { name, email, phone, bio } = user;
+    user.email = email
+    user.name = req.body.name || name
+    user.phone = req.body.phone || phone
+    user.bio = req.body.bio || bio
+
+    const updatedUser = await user.save()
+    res.status(200).json({
+      _id: updatedUser._id,
+      name: updatedUser.name,
+      email: updatedUser.email,
+      phone: updatedUser.phone,
+      bio: updatedUser.bio,
+    });
+
+  } else {
+    res.status(400);
+    throw Error("User not Found");
+  }
+
+  // res.send("Update User")
+})
+
 module.exports = {
   registerUser,
   loginUser,
   logoutUser,
+  getUser,
+  loginStatus,
+  UpdateUser,
 };
